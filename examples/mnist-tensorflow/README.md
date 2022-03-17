@@ -45,6 +45,21 @@ echo "Rivanna Frontend"
 time singularity run --nv /scratch/$USER/rivanna/tensorflow-2.7.0.sif mnist.py
 ```
 
+## Custom Singularity container
+
+To run with the custom singularity container, execute
+
+```bash
+singularity build --fakeroot mnist.simg Singularity.recipe
+```
+
+When running the image, it defaults to the `mnist.py` program, so the benchmark can be executed using:
+
+```bash
+singularity run --nv mnist.simg --gpu=0 --info
+singularity run --nv mnist.simg --gpu=0
+```
+
 ## Benchmarks
 
 benchmarks may not be accurate, real time is what we probably want to focus on
