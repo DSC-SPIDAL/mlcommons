@@ -1,0 +1,23 @@
+Bootstrap: docker
+From: tensorflow/tensorflow:2.8.0-gpu
+
+%post
+    apt-get update && apt-get install -y git
+    git clone https://github.com/laszewsk/mlcommons.git
+    git clone https://github.com/laszewsk/mlcommons-data-earthquake.git
+    python3 -m pip install -r  mlcommons/benchmarks/earthquake/mar2022/requirements.txt
+    mkdir -p /benchmark/program
+    cp mlcommons/benchmarks/earthquake/mar2022/FFFFWNPFEARTHQ_newTFTv29-gregor.ipynb /benchmark/program/eq.ipynb
+    tar Jxvf mlcommons-data-earthquake/data.tar.xz --no-same-owner -C /benchmark
+    rm -rf mlcommons mlcommons-data-earthquake
+
+%runscript
+    RUNDIR="$PWD"
+    (cd /benchmark/program && papermill /benchmark/program/eq.ipynb "$RUNDIR/output.ipynb")
+
+%help
+Sample MNIST program used to validate environments for benchmarking.
+For more details run with --help
+
+%labels
+  Version v0.1

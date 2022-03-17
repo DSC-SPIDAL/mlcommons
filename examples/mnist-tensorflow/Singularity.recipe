@@ -1,0 +1,19 @@
+Bootstrap: docker
+From: tensorflow/tensorflow:2.8.0-gpu
+
+%post
+    apt-get update && apt-get install -y git
+    git clone https://github.com/laszewsk/mlcommons.git
+    python3 -m pip install -r  mlcommons/examples/mnist-tensorflow/requirements.txt
+    cp mlcommons/examples/mnist-tensorflow/mnist.py .
+    rm -rf mlcommons
+
+%runscript
+    python /mnist.py "$@"
+
+%help
+Sample MNIST program used to validate environments for benchmarking.
+For more details run with --help
+
+%labels
+  Version v0.1
