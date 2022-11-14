@@ -2,6 +2,8 @@
 
 ## Set up experiment utilities
 
+Tip: use option 1
+
 1. Load in Python 3.10
    1. Option 1 - Using Anaconda
       ```bash
@@ -11,7 +13,8 @@
       conda create -y -n py3.10 python=3.10
       source activate py3.10
       ```
-   2. Option 2 - Using Native Python
+   
+   2. Option 2 - Using Native Python with custom build python.
       ```bash
       module purge
       module use /project/bii_dsc/mlcommons-system/modulefiles
@@ -20,6 +23,7 @@
       Note: This module uses a custom version of python as configured in [Building Python](https://github.com/laszewsk/mlcommons/tree/main/systems/rivanna/buildscripts/python-rivanna) and loading the lua modules in a preconfigured directory setup at [Configuring Python](https://github.com/laszewsk/mlcommons/tree/main/systems/rivanna/modulefiles/python-rivanna).  Details on how to add to these files can be found in the [systems](https://github.com/laszewsk/mlcommons/tree/main/systems/rivanna) folder.
 
 2. Setup Cloudmesh and the cloudmesh sbatch utility.
+
    ```bash
    python3.10 -m venv ~/ENV3
    source ~/ENV3/bin/activate
@@ -33,8 +37,10 @@
    cms help
    ```
 
-The last line can also be with `--ssh` if you sue ssh instead of http for git checkouts.
-Note that if you elect to use the ssh configuration, you may be frequently prompted for your password.  You can cache your password by establishing an ssh-agent prior to running the command by running:
+The last line can also be with `--ssh` if you use ssh instead of http for 
+git checkouts. Note that if you elect to use the ssh configuration, you 
+may be frequently prompted for your password. You can cache your password 
+by establishing an ssh-agent prior to running the command by running:
 
 ```bash
 eval `ssh-agent -s`
@@ -42,12 +48,27 @@ ssh-add
 cloudmesh-installer --ssh get sbatch
 cms help
 ```
-
-
-
-## Preparing Earthquake Environment
+## Preparing Earthquake Environment from the Production Code
 
 1. Generating experiment configurations
+
+   ```bash
+   cd ~
+   export EQ_VERSION=latest
+
+   # FOR USERS
+   git clone https://github.com/mlcommons/science.git
+   # Or for developers
+   # git clone git@github.com:laszewsk/mlcommons.git
+   cd ~/science/benchmarks/earthquake/$EQ_VERSION/experiments/rivanna
+   ```
+
+## Preparing Earthquake Environment from the Development Code
+
+Skip this step if you run the production version
+
+1. Generating experiment configurations
+
    ```bash
    cd ~
    export EQ_VERSION=latest
@@ -56,16 +77,27 @@ cms help
    git clone https://github.com/laszewsk/mlcommons.git
    # Or for developers
    # git clone git@github.com:laszewsk/mlcommons.git
-   cd ~/mlcommons/benchmarks/earthquake/$EQ_VERSION/experiments/rivanna-simple
+   cd ~/mlcommons/benchmarks/earthquake/$EQ_VERSION/experiments/rivanna
    ```
-   
+
+## Run a particular configuration
+
 2. Set your desired configuration you wish to run:
+
    ```bash
    # One of - localscratch, project, shm, dgx, or dgx-shm
    export EQ_CONFIGURATION="localscratch"
    ```
+3. Opttionally remove previous generated setup
 
-3. Perform a 1 time bootstrap of your environment.
+   ```bash
+   rm -rf $EQ_CONFIGURATION
+   rm $EQ_CONFIGURATION.json
+   rm jobs-$EQ_CONFIGURATION.sh
+   ```
+
+5. Perform a 1 time bootstrap of your environment.
+
    ```bash
    make setup-$EQ_CONFIGURATION
    ## or run the following
@@ -116,10 +148,18 @@ biocomplexity                 100000               0         30773.4
 ds6011-sp22-002               100000               0         59156.2   
 ```
 
-Chose the allocation which is most appropriate for you, and change it in the yaml file 
-Locate the following line and change accordingly.
+Choose the allocation which is most appropriate for you and change it 
+in its corresponding yaml file (e.g. for localscratch, the yaml is called
+`rivanna-localscratch.yaml`). Locate the following line and change accordingly.
+
+### Using a V100 on rivanna 
+
+To use a v100 you have to set the following.
 
 ```
+experiment:
+  card_name: a100
+
 run:
   allocation: bii_dsc_community 
 
@@ -127,8 +167,13 @@ system:
   partition: gpu
 ```
 
-Please note that only bii_dsc_community, bii_dsc are able to use a new version of 
-the A100 if the following are included in the yaml file.
+
+### Using a a100 (new) on rivanna 
+
+To use a a100 you have to set the following.
+
+Please note that only bii_dsc_community, bii_dsc are able to use a new 
+version of the A100 if the following are included in the yaml file.
 
 
 ```
@@ -147,12 +192,16 @@ run:
    make generate-$EQ_CONFIGURATION
    ```
 
-It's strongly advised that you inspect the output of the above to validate that all generated scripts and files are correct.
-Most jobs take several hours, so correcting errors by inspecting the output will save time when troubleshooting.
+It is strongly advised that you inspect the output of the above to validate 
+that all generated scripts and files are correct. Most jobs take several 
+hours, so correcting errors by inspecting the output will save time when 
+troubleshooting.
 
 **IMPORTANT**
-On Rivanna, when using the `/project`or `/scratch` filesystems, there is a file limit quota that will terminate your job immediately if you exceed it.
-Make sure that you do not run more than 5 jobs concurrently in the `project` configuration.
+On Rivanna, when using the `/project`or `/scratch` filesystems, there is a 
+file limit quota that will terminate your job immediately if you exceed it.
+Make sure that you do not run more than 5 jobs concurrently in the `project` 
+configuration.
 
 You will be able to see the generated scripts with the coommand
 
@@ -172,25 +221,26 @@ card_name_v100_gpu_count_1_cpu_num_6_mem_32GB_repeat_1_TFTTransformerepochs_60
 card_name_v100_gpu_count_1_cpu_num_6_mem_32GB_repeat_1_TFTTransformerepochs_70
 ```
 
-To modify them, pleas make changes to the experiments that you run, please edit the file 
-rivanna-EQ_CONFIGURATION.yaml
+To modify them, please make changes to the experiments that you run, 
+please edit the file rivanna-$EQ_CONFIGURATION.yaml
 
 ```bash
-emacs rivanna-EQ_CONFIGURATION.yaml
+emacs rivanna-$EQ_CONFIGURATION.yaml
 ```
 
-Before running the experiments check if they are ok, as it can take a very long time 
-to run them on rivanna dependent on the GPU used 
+Before running the experiments check if they are ok, as it can take a very 
+long time to run them on Rivanna dependent on the GPU used 
 (2epoch run on A100 ~4 hours and for K80 it runs 24 hours).
 
 (Right now v100 is the default)
 
 ### Running the Experiments
 
-If the output from the cloudmesh sbatch command matches your experiment's configuration, then the experiment is ready to be executed on rivanna using
+If the output from the cloudmesh sbatch command matches your experiment's 
+configuration, then the experiment is ready to be executed on Rivanna using
 
 ```bash
-sh job-$EQ_CONFIGURATION.sh
+sh jobs-$EQ_CONFIGURATION.sh
 ```
 
 This will request all jobs to be run immediately by slurm, and the notebook file will be outputted in:
