@@ -52,32 +52,37 @@ cms help
 
 1. Generating experiment configurations
 
+   Choose a PROJECT_DIR where you like to install the code. Rivanna offers some temporary
+   space in the /scratch directory. 
+
    ```bash
-   cd ~
+   export PROJECT_DIR=/scratch/$USER
+   mkdir -p $PROJECT_DIR
+   cd $PROJECT_DIR
    export EQ_VERSION=latest
 
    # FOR USERS
    git clone https://github.com/mlcommons/science.git
-   # Or for developers
-   # git clone git@github.com:laszewsk/mlcommons.git
-   cd ~/science/benchmarks/earthquake/$EQ_VERSION/experiments/rivanna
+   cd science
+   git checkout main
+   cd $PROJECT_DIR/science/benchmarks/earthquake/$EQ_VERSION/experiments/rivanna
    ```
 
 ## Preparing Earthquake Environment from the Development Code
 
-Skip this step if you run the production version
+Skip this step if you run the production version.
 
 1. Generating experiment configurations
 
    ```bash
-   cd ~
+   export PROJECT_DIR=/scratch/$USER
+   mkdir -p $PROJECT_DIR
+   cd $PROJECT_DIR
    export EQ_VERSION=latest
-
-   # FOR USERS
-   git clone https://github.com/laszewsk/mlcommons.git
-   # Or for developers
-   # git clone git@github.com:laszewsk/mlcommons.git
-   cd ~/mlcommons/benchmarks/earthquake/$EQ_VERSION/experiments/rivanna
+   
+   git clone ssh://git@github.com/laszewsk/mlcommons.git
+   cd $PROJECT_DIR/mlcommons/benchmarks/earthquake/$EQ_VERSION/experiments/rivanna
+   git checkout main
    ```
 
 ## Run a particular configuration
@@ -88,7 +93,7 @@ Skip this step if you run the production version
    # One of - localscratch, project, shm, dgx, or dgx-shm
    export EQ_CONFIGURATION="localscratch"
    ```
-3. Opttionally remove previous generated setup
+3. Optionally remove previous generated setup
 
    ```bash
    rm -rf $EQ_CONFIGURATION
@@ -155,10 +160,12 @@ in its corresponding yaml file (e.g. for localscratch, the yaml is called
 ### Using a V100 on rivanna 
 
 To use a v100 you have to set the following.
+The bi_fox_dgx reservation does not have a v100 
+and will fail if one is requested on that reservation.
 
-```
+```yaml
 experiment:
-  card_name: a100
+  card_name: v100
 
 run:
   allocation: bii_dsc_community 
@@ -168,15 +175,15 @@ system:
 ```
 
 
-### Using a a100 (new) on rivanna 
+### Using an a100 (new) on rivanna 
 
-To use a a100 you have to set the following.
+To use an a100 you have to set the following.
 
 Please note that only bii_dsc_community, bii_dsc are able to use a new 
 version of the A100 if the following are included in the yaml file.
 
 
-```
+```yaml
 system:
   partition: bii-gpu
 

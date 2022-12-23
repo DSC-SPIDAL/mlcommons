@@ -7,6 +7,7 @@
 # Copyright © 2022 Scientific Machine Learning Research Group
 # Scientific Computing Department, Rutherford Appleton Laboratory
 # Science and Technology Facilities Council, UK.
+# with modifications from Gregor von Laszewski, Juri Papay
 # All rights reserved.
 
 import yaml
@@ -85,7 +86,6 @@ def reconstruct_from_patches(args, patches: tf.Tensor, nx: int, ny: int, patch_s
     reconstructed = tf.image.crop_to_bounding_box(reconstructed, offset_y, offset_x, IMAGE_H, IMAGE_W)
     return reconstructed
 
-
 # Inference
 def cloud_inference(args) -> None:
     print('Running benchmark slstr_cloud in inference mode.')
@@ -101,42 +101,64 @@ def cloud_inference(args) -> None:
     # Read inference files
     inference_dir = os.path.expanduser(args['inference_dir'])
     file_paths = list(Path(inference_dir).glob('**/S3A*.hdf'))
-
+    
     # Create data loader in single image mode. This turns off shuffling and
     # only yields batches of images for a single image at a time, so they can be
     # reconstructed.
     data_loader = SLSTRDataLoader(args, file_paths, single_image=True, crop_size=CROP_SIZE)
+    # data_loader = SLSTRDataLoader(args, file_paths, single_image=False, crop_size=CROP_SIZE)
     dataset = data_loader.to_dataset()
-
+    
     # Inference Loop
+    accuracyList = []
     for patches, file_name in dataset:
         file_name = Path(file_name.numpy().decode('utf-8'))
-        # print(f"Processing file {file_name}")
-
+        
         # convert patches to a batch of patches
         n, ny, nx, _ = patches.shape
         patches = tf.reshape(patches, (n * nx * ny, PATCH_SIZE, PATCH_SIZE, N_CHANNELS))
 
         # perform inference on patches
         mask_patches = model.predict_on_batch(patches)
+        #mask_patches = model.test_on_batch(patches) # might return also the accuracy
 
         # crop edge artifacts
         mask_patches = tf.image.crop_to_bounding_box(mask_patches, CROP_SIZE // 2, CROP_SIZE // 2, PATCH_SIZE - CROP_SIZE,
                                                      PATCH_SIZE - CROP_SIZE)
-
         # reconstruct patches back to full size image
         mask_patches = tf.reshape(mask_patches, (n, ny, nx, PATCH_SIZE - CROP_SIZE, PATCH_SIZE - CROP_SIZE, 1))
+        # Mask produced by inference
         mask = reconstruct_from_patches(args, mask_patches, nx, ny, patch_size=PATCH_SIZE - CROP_SIZE)
+        
+        # Save reconstructed image (mask)
         output_dir = os.path.expanduser(args['output_dir'])
         mask_name = output_dir + file_name.name + '.h5'
-        # print('mask_name: ', mask_name)
-
         with h5py.File(mask_name, 'w') as handle:
             handle.create_dataset('mask', data=mask)
-    # Return the number of inferences
+        
+        # Change mask values from float to integer
+        mask_np = mask.numpy()
+        mask_np[mask_np > 0] = 1
+        mask_np[mask_np == 0 ] = 0
+        mask_flat = mask_np.reshape(-1)
+        
+        # Extract groundTruth from file, this is the Bayesian mask
+        with h5py.File(file_name, 'r') as handle:           
+            groundTruth = handle['bayes'][:]
+            groundTruth[groundTruth > 0] = 1
+            groundTruth[groundTruth == 0] = 0
+        
+        # Make 1D array
+        groundTruth_flat = groundTruth.reshape(-1)
+       
+        # Calculate hits between ground truth mask and the reconstructed mask
+        accuracy = np.mean( groundTruth_flat == mask_flat)
+        accuracyList.append(accuracy)
+       
     d = {
-        "TBD": "TBD"
+        "accuracy": accuracyList
     }
+    # Return number of files used for inference and disctionary d with accuracy
     return len(file_paths), d
 
 
@@ -150,7 +172,7 @@ def cloud_training(args) -> None:
     data_dir = os.path.expanduser(args['train_dir'])
 
     # load the datasets
-    train_dataset, test_dataset = load_datasets(dataset_dir=data_dir, args=args)
+    train_dataset, test_dataset = load_datasets(dataset_dir=data_dir, config=args)
 
     samples = list(Path(data_dir).glob('**/S3A*.hdf'))
     num_samples = len(samples)
@@ -163,7 +185,7 @@ def cloud_training(args) -> None:
     with mirrored_strategy.scope():
         # create U-Net model
         model = unet(input_shape=(args['PATCH_SIZE'], args['PATCH_SIZE'], args['N_CHANNELS']))
-        model.compile(optimizer=optimizer, loss='binary_crossentropy', metrics=['accuracy'])
+        model.compile(optimizer=optimizer, loss=args['training_loss'], metrics=[args['training_metrics']])
         history = model.fit(train_dataset, validation_data=test_dataset, epochs=args['epochs'], verbose=1)
 
     # Close file descriptors
@@ -194,7 +216,7 @@ def cloud_training(args) -> None:
 # #################################
 # Main
 # #################################
-# Running the benchmark: python slstr_cloud.py --config ./cloudMaskConfig.yaml
+# Running the benchmark: python slstr_cloud.py --config ./config.yaml
 
 def main():
     # Read command line arguments
@@ -203,7 +225,7 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
 
-    parser.add_argument('--config', default=os.path.expanduser('./cloudMaskConfig.yaml'), help='path to config file')
+    parser.add_argument('--config', default=os.path.expanduser('./config.yaml'), help='path to config file')
     command_line_args = parser.parse_args()
 
     configFile = os.path.expanduser(command_line_args.config)
@@ -219,7 +241,7 @@ def main():
     mllogger = mllog.get_mllogger()
     logger = logging.getLogger(__name__)
 
-    # Values extracted from cloudMaskConfig.yaml
+    # Values extracted from config.yaml
     mllogger.event(key=mllog.constants.SUBMISSION_BENCHMARK, value=args['benchmark'])
     mllogger.event(key=mllog.constants.SUBMISSION_ORG, value=args['organisation'])
     mllogger.event(key=mllog.constants.SUBMISSION_DIVISION, value=args['division'])
